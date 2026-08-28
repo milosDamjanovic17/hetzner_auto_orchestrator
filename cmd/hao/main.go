@@ -8,15 +8,22 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/config"
+	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/hetzner"
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/secrets"
 )
+
+// apiTimeout bounds every Hetzner call so the CLI cannot hang indefinitely on
+// a stalled connection.
+const apiTimeout = 30 * time.Second
 
 const usage = `hao - Hetzner auto orchestrator
 
@@ -25,6 +32,7 @@ Usage:
   hao import               adopt contexts from the hcloud CLI's cli.toml
   hao context list         list contexts, marking the active one
   hao context use <name>   set the active context
+  hao zone list            list DNS zones in the active context
 `
 
 func main() {
@@ -56,6 +64,8 @@ func run(args []string) error {
 		return cmdImport()
 	case "context":
 		return cmdContext(args[1:])
+	case "zone":
+		return cmdZone(args[1:])
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 		return nil
@@ -82,6 +92,27 @@ func loadContexts(st secrets.Store) (*config.Store, error) {
 		return nil, errors.New("no store yet - run `hao init` first")
 	}
 	return s, err
+}
+
+// activeClient returns a Hetzner client for the active context.
+//
+// Every resource listing goes through here: the local store answers "which
+// token", and Hetzner answers "what exists". The two are separate questions and
+// conflating them is what made `zone list` print project names.
+func activeClient() (*hetzner.Client, error) {
+	st, err := openStore()
+	if err != nil {
+		return nil, err
+	}
+	store, err := loadContexts(st)
+	if err != nil {
+		return nil, err
+	}
+	active, err := store.ActiveContext()
+	if err != nil {
+		return nil, fmt.Errorf("%w - run `hao context use <name>`", err)
+	}
+	return hetzner.NewClient(active.Token), nil
 }
 
 func cmdInit() error {
@@ -261,5 +292,39 @@ func cmdContext(args []string) error {
 
 	default:
 		return fmt.Errorf("context: unknown subcommand %q", args[0])
+	}
+}
+
+func cmdZone(args []string) error {
+	if len(args) == 0 {
+		return errors.New("zone: expected `list`")
+	}
+
+	switch args[0] {
+	case "list":
+		client, err := activeClient()
+		if err != nil {
+			return err
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
+		defer cancel()
+
+		zones, err := client.Zones(ctx)
+		if err != nil {
+			return err
+		}
+		if len(zones) == 0 {
+			// An empty project is a valid answer, not a failure.
+			fmt.Println("no zones in this project")
+			return nil
+		}
+		for _, z := range zones {
+			fmt.Printf("%-32s %-10s %-10s %d records\n", z.Name, z.Status, z.Mode, z.RecordCount)
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("zone: unknown subcommand %q", args[0])
 	}
 }

@@ -1,7 +1,7 @@
 # hetzner_auto_orchestrator (`hao`)
 
 A tool for managing Hetzner Cloud projects without living in the terminal.
-The goal is a desktop GUI (Lorca). Right now it is a command-line tool, `hao`,
+The goal is a desktop GUI (Wails). Right now it is a command-line tool, `hao`,
 that proves the core works.
 
 **Status: Phase 1, read-only.** `hao` stores Hetzner project tokens encrypted
@@ -28,9 +28,9 @@ go build -o bin/hao.exe ./cmd/hao
 ## Contexts
 
 A context is a named Hetzner Cloud project token, like in the `hcloud` CLI.
-One context holds one token. If a project has a Read token and a Read & Write
-token, add them as two contexts, e.g. `myproject-ro` and `myproject-rw`.
-Phase 1 only reads, so the Read token is all you need for now.
+One context holds one token, and it should be a **Read & Write** token.
+Everything today only reads, but later phases create and delete resources and
+will expect write access. `hao` does not check a token's scope.
 
 ## Commands
 
@@ -46,7 +46,7 @@ window), checks it against the Hetzner API, and saves it only if Hetzner
 accepts it.
 
 ```powershell
-hao context add myproject-ro
+hao context add myproject
 token:            # paste the token, press Enter
 ```
 
@@ -143,7 +143,7 @@ Hetzner has no API for either, so these print a link to the Hetzner Console
 
 ```powershell
 hao init
-hao context add myproject-ro     # or: hao import
+hao context add myproject        # or: hao import
 hao context list
 hao server list
 hao preflight

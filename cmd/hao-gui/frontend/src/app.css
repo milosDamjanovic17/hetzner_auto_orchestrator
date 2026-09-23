@@ -83,3 +83,102 @@ main {
     border-radius: 3px;
     background-color: rgba(60, 140, 90, 0.8);
 }
+
+.notice {
+    margin: 1rem 1.5rem 0;
+    padding: 0.75rem 1rem;
+    border-radius: 3px;
+    background-color: rgba(60, 140, 90, 0.45);
+}
+
+.contexts li {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.contexts .name {
+    flex: 1;
+}
+
+.contexts .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: normal;
+}
+
+.btn.small {
+    height: 26px;
+    padding: 0 10px;
+}
+
+.btn.danger {
+    background-color: rgba(200, 60, 60, 1);
+    color: white;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.5rem 1.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.tab {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 3px 3px 0 0;
+    background: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+}
+
+.tab:hover {
+    color: white;
+}
+
+.tab.selected {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: white;
+    font-weight: bold;
+}
+
+.table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.table th,
+.table td {
+    padding: 0.4rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.table th {
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: normal;
+}
+
+.add-form {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.add-form input {
+    height: 26px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 3px;
+}
+
+.add-form input[type="password"] {
+    flex: 1;
+}

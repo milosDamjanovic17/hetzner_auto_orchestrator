@@ -2,10 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
+	"strings"
+	"time"
 
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/config"
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/service"
 )
+
+// apiTimeout bounds every Hetzner call, as in the CLI, so the window cannot
+// wait forever on an unreachable Hetzner.
+const apiTimeout = 30 * time.Second
 
 // App is the object Wails binds to the frontend: every exported method is
 // callable from JavaScript.
@@ -75,4 +82,58 @@ func (a *App) Contexts() ([]service.ContextInfo, error) {
 		return nil, err
 	}
 	return svc.Contexts()
+}
+
+// Init creates the encrypted store. The service refuses if one already exists.
+func (a *App) Init() error {
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	return svc.Init()
+}
+
+// UseContext makes name the active project, for the CLI too.
+func (a *App) UseContext(name string) error {
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	return svc.Use(name)
+}
+
+// AddContext validates the token with Hetzner and stores it under name.
+//
+// This is the one place a token crosses JS -> Go. It is never returned,
+// echoed in a message, or logged.
+func (a *App) AddContext(name, token string) error {
+	// Trimmed as the CLI trims a pasted token: stray whitespace from a
+	// copy-paste would otherwise be stored and rejected by Hetzner later.
+	// Checked before anything else so an empty field never costs a network call.
+	name, token = strings.TrimSpace(name), strings.TrimSpace(token)
+	if name == "" {
+		return errors.New("no name given; nothing saved")
+	}
+	if token == "" {
+		return errors.New("no token given; nothing saved")
+	}
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, apiTimeout)
+	defer cancel()
+	_, err = svc.Add(ctx, name, token)
+	return err
+}
+
+// DeleteContext removes name from the store. The page confirms first; the
+// token itself is not revoked at Hetzner.
+func (a *App) DeleteContext(name string) error {
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	_, err = svc.Delete(name)
+	return err
 }

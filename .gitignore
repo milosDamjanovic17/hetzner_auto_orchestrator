@@ -1,0 +1,8 @@
+# Assistant notes and local instructions - kept out of the repo
+.claude/*
+CLAUDE.md
+NOTES.md
+
+# Build output
+*.exe
+bin/

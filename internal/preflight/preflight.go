@@ -19,6 +19,7 @@ import (
 type Availability struct {
 	ServerType   string  `json:"server_type"`
 	Location     string  `json:"location"`
+	City         string  `json:"city"`
 	Available    bool    `json:"available"`
 	Recommended  bool    `json:"recommended"`
 	Deprecated   bool    `json:"deprecated"`
@@ -48,6 +49,17 @@ func (c *Checker) All(ctx context.Context) ([]Availability, error) {
 		return nil, fmt.Errorf("preflight: listing server types: %w", err)
 	}
 
+	// The locations embedded in server types come back without a city, so
+	// cities come from the locations endpoint itself.
+	locations, err := c.api.Location.All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("preflight: listing locations: %w", err)
+	}
+	city := make(map[string]string, len(locations))
+	for _, l := range locations {
+		city[l.Name] = l.City
+	}
+
 	out := make([]Availability, 0, len(types))
 	for _, st := range types {
 		for _, loc := range st.Locations {
@@ -57,6 +69,7 @@ func (c *Checker) All(ctx context.Context) ([]Availability, error) {
 			out = append(out, Availability{
 				ServerType:   st.Name,
 				Location:     loc.Location.Name,
+				City:         city[loc.Location.Name],
 				Available:    loc.Available,
 				Recommended:  loc.Recommended,
 				Deprecated:   loc.IsDeprecated(),
@@ -86,7 +99,12 @@ func (c *Checker) IsAvailable(ctx context.Context, serverType, location string) 
 	if err != nil {
 		return false, err
 	}
+	return Lookup(all, serverType, location)
+}
 
+// Lookup answers IsAvailable against data already fetched with All, so a
+// caller that has the list does not pay for a second API call.
+func Lookup(all []Availability, serverType, location string) (bool, error) {
 	typeExists := false
 	for _, a := range all {
 		if a.ServerType != serverType {
@@ -102,4 +120,58 @@ func (c *Checker) IsAvailable(ctx context.Context, serverType, location string) 
 		return false, fmt.Errorf("preflight: unknown server type %q", serverType)
 	}
 	return false, fmt.Errorf("preflight: server type %q is not offered in location %q", serverType, location)
+}
+
+// IsLocation reports whether name is a location any server type is offered in.
+func IsLocation(all []Availability, name string) bool {
+	for _, a := range all {
+		if a.Location == name {
+			return true
+		}
+	}
+	return false
+}
+
+// LocationAvailability is every server type available right now in one
+// location.
+type LocationAvailability struct {
+	Location  string         `json:"location"`
+	City      string         `json:"city"`
+	Available []Availability `json:"available"`
+}
+
+// AvailableIn returns, for each of the given locations, the server types
+// available there right now. Groups follow the order asked (duplicates
+// dropped); within a group, server types are sorted as in All.
+//
+// An unknown location is an error rather than an empty group, for the same
+// reason as Lookup: "fsn" (a typo) must not read as "nothing in stock". A real
+// location with nothing in stock is an empty group, not an error.
+func AvailableIn(all []Availability, locations []string) ([]LocationAvailability, error) {
+	var out []LocationAvailability
+	seen := make(map[string]bool)
+	for _, loc := range locations {
+		if seen[loc] {
+			continue
+		}
+		seen[loc] = true
+
+		group := LocationAvailability{Location: loc, Available: []Availability{}}
+		known := false
+		for _, a := range all {
+			if a.Location != loc {
+				continue
+			}
+			known = true
+			group.City = a.City
+			if a.Available {
+				group.Available = append(group.Available, a)
+			}
+		}
+		if !known {
+			return nil, fmt.Errorf("preflight: unknown location %q", loc)
+		}
+		out = append(out, group)
+	}
+	return out, nil
 }

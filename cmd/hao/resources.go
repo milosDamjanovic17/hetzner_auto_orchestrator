@@ -8,6 +8,7 @@ import (
 
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/hetzner"
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/preflight"
+	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/service"
 )
 
 // consoleURL is where API tokens and project members are managed. Checked
@@ -121,7 +122,11 @@ func cmdList(noun string, r resource, args []string) error {
 		return fmt.Errorf("%s: unknown subcommand %q", noun, args[0])
 	}
 
-	client, err := activeClient()
+	svc, err := service.Open()
+	if err != nil {
+		return err
+	}
+	_, client, err := svc.ActiveClient()
 	if err != nil {
 		return err
 	}
@@ -156,7 +161,11 @@ func cmdPreflight(args []string) error {
 		return r == ',' || unicode.IsSpace(r)
 	})
 
-	token, err := activeToken()
+	svc, err := service.Open()
+	if err != nil {
+		return err
+	}
+	_, checker, err := svc.ActiveChecker()
 	if err != nil {
 		return err
 	}
@@ -165,7 +174,7 @@ func cmdPreflight(args []string) error {
 	defer cancel()
 
 	// Fetched once; every mode below answers from this list.
-	all, err := preflight.NewChecker(token).All(ctx)
+	all, err := checker.All(ctx)
 	if err != nil {
 		return err
 	}

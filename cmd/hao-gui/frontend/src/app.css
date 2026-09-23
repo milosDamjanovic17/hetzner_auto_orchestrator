@@ -1,0 +1,85 @@
+#app {
+    text-align: left;
+}
+
+header {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background-color: rgba(15, 22, 33, 1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+header .label {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* The active project must be unmistakable: it decides what every action touches. */
+header .active {
+    font-size: 2rem;
+    font-weight: bold;
+    flex: 1;
+}
+
+header .active.none {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+main {
+    padding: 0 1.5rem;
+}
+
+.btn {
+    height: 30px;
+    border-radius: 3px;
+    border: none;
+    padding: 0 12px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
+    color: #333333;
+}
+
+.banner,
+.error {
+    margin: 1rem 1.5rem 0;
+    padding: 0.75rem 1rem;
+    border-radius: 3px;
+}
+
+.banner {
+    background-color: rgba(180, 130, 20, 0.35);
+}
+
+.error {
+    background-color: rgba(180, 40, 40, 0.45);
+}
+
+.muted {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.contexts {
+    list-style: none;
+    padding: 0;
+}
+
+.contexts li {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.contexts li.is-active {
+    font-weight: bold;
+}
+
+.tag {
+    font-size: 0.75rem;
+    font-weight: normal;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background-color: rgba(60, 140, 90, 0.8);
+}

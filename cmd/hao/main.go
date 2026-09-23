@@ -1,7 +1,7 @@
 // Command hao is the console driver for the orchestrator.
 //
 // It is deliberately thin: it formats and prints, and decides nothing. Every
-// choice lives in internal/, so the Lorca GUI can make the same calls later
+// choice lives in internal/, so the Wails GUI can make the same calls later
 // without reimplementing any of it. Resist adding flag libraries, table
 // formatting or prompt frameworks here.
 package main
@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/config"
-	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/hetzner"
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/secrets"
+	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/service"
 	"golang.org/x/term"
 )
 
@@ -56,7 +56,7 @@ Listing (active context, read-only):
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "error:", withHint(err))
 		os.Exit(1)
 	}
 }
@@ -108,64 +108,43 @@ func openStore() (*secrets.AgeStore, error) {
 	return secrets.NewAgeStore(path)
 }
 
-// loadContexts loads the context store, translating first-run into an
-// actionable message instead of a bare error.
-func loadContexts(st secrets.Store) (*config.Store, error) {
-	s, err := config.Load(st)
-	if errors.Is(err, secrets.ErrNotInitialized) {
-		return nil, errors.New("no store yet - run `hao init` first")
+// withHint turns an error the user can fix into one that names the fixing
+// command. internal/service writes messages for every driver, so it cannot
+// mention `hao` commands itself; this is the CLI's half of that.
+func withHint(err error) error {
+	switch {
+	case errors.Is(err, secrets.ErrNotInitialized):
+		return errors.New("no store yet - run `hao init` first")
+	case errors.Is(err, config.ErrNoActive):
+		return fmt.Errorf("%w - run `hao context use <name>`", err)
 	}
-	return s, err
+	return err
 }
 
-// activeToken returns the active context's token. It is only ever handed to a
-// client constructor, never printed.
-func activeToken() (string, error) {
-	st, err := openStore()
+// hasContext reports whether name is in the store. The CLI asks before
+// prompting so a clash or a typo does not cost a paste or a confirmation.
+func hasContext(svc *service.Service, name string) (bool, error) {
+	contexts, err := svc.Contexts()
 	if err != nil {
-		return "", err
+		return false, err
 	}
-	store, err := loadContexts(st)
-	if err != nil {
-		return "", err
+	for _, c := range contexts {
+		if c.Name == name {
+			return true, nil
+		}
 	}
-	active, err := store.ActiveContext()
-	if err != nil {
-		return "", fmt.Errorf("%w - run `hao context use <name>`", err)
-	}
-	return active.Token, nil
-}
-
-// activeClient returns a Hetzner client for the active context.
-//
-// Every resource listing goes through here: the local store answers "which
-// token", and Hetzner answers "what exists". The two are separate questions and
-// conflating them is what made `zone list` print project names.
-func activeClient() (*hetzner.Client, error) {
-	token, err := activeToken()
-	if err != nil {
-		return nil, err
-	}
-	return hetzner.NewClient(token), nil
+	return false, nil
 }
 
 func cmdInit() error {
-	st, err := openStore()
+	svc, err := service.Open()
 	if err != nil {
 		return err
 	}
-
-	// Never clobber an existing store: the tokens in it may be the only copy.
-	if _, err := st.Load(); err == nil {
-		return fmt.Errorf("store already exists at %s", st.Path())
-	} else if !errors.Is(err, secrets.ErrNotInitialized) {
+	if err := svc.Init(); err != nil {
 		return err
 	}
-
-	if err := config.Save(st, &config.Store{}); err != nil {
-		return err
-	}
-	fmt.Printf("initialized encrypted store at %s\n", st.Path())
+	fmt.Printf("initialized encrypted store at %s\n", svc.Path())
 	fmt.Println("age identity stored in the OS keychain")
 	fmt.Println("next: `hao import` to adopt your hcloud contexts")
 	return nil
@@ -176,7 +155,7 @@ func cmdImport() error {
 	if err != nil {
 		return err
 	}
-	store, err := loadContexts(st)
+	store, err := config.Load(st)
 	if err != nil {
 		return err
 	}
@@ -320,25 +299,24 @@ func cmdContext(args []string) error {
 		return fmt.Errorf("context: expected `list`, `use <name>`, `add <name>` or `delete <name>`")
 	}
 
-	st, err := openStore()
-	if err != nil {
-		return err
-	}
-	store, err := loadContexts(st)
+	svc, err := service.Open()
 	if err != nil {
 		return err
 	}
 
 	switch args[0] {
 	case "list":
-		contexts := store.List()
+		contexts, err := svc.Contexts()
+		if err != nil {
+			return err
+		}
 		if len(contexts) == 0 {
 			fmt.Println("no contexts - run `hao import` or `hao context add <name>`")
 			return nil
 		}
 		for _, c := range contexts {
 			marker := " "
-			if c.Name == store.Active {
+			if c.Active {
 				marker = "*"
 			}
 			fmt.Printf("%s %s\n", marker, c.Name)
@@ -349,10 +327,7 @@ func cmdContext(args []string) error {
 		if len(args) < 2 {
 			return errors.New("context use: expected a context name")
 		}
-		if err := store.SetActive(args[1]); err != nil {
-			return err
-		}
-		if err := config.Save(st, store); err != nil {
+		if err := svc.Use(args[1]); err != nil {
 			return err
 		}
 		fmt.Printf("active context is now %s\n", args[1])
@@ -364,8 +339,10 @@ func cmdContext(args []string) error {
 		}
 		name := args[1]
 		// Checked before prompting so a clashing name does not cost a paste.
-		// Store.Add rejects it again; this is only the earlier, cheaper exit.
-		if _, err := store.Get(name); err == nil {
+		// svc.Add rejects it again; this is only the earlier, cheaper exit.
+		if exists, err := hasContext(svc, name); err != nil {
+			return err
+		} else if exists {
 			return fmt.Errorf("%w: %q", config.ErrDuplicate, name)
 		}
 
@@ -374,29 +351,14 @@ func cmdContext(args []string) error {
 			return err
 		}
 
-		// Never store a token Hetzner has not accepted: a bad one would
-		// otherwise surface later as a confusing failure on some listing.
 		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 		defer cancel()
-		if err := hetzner.NewClient(token).ValidateToken(ctx); err != nil {
-			switch {
-			case errors.Is(err, hetzner.ErrUnauthorized):
-				return errors.New("token rejected by Hetzner - check it was copied whole and has not been revoked; nothing saved")
-			case errors.Is(err, hetzner.ErrUnreachable):
-				return fmt.Errorf("could not reach Hetzner to validate the token; nothing saved: %w", err)
-			default:
-				return fmt.Errorf("%w; nothing saved", err)
-			}
-		}
-
-		if err := store.Add(config.Context{Name: name, Token: token}); err != nil {
-			return err
-		}
-		if err := config.Save(st, store); err != nil {
+		active, err := svc.Add(ctx, name, token)
+		if err != nil {
 			return err
 		}
 		fmt.Printf("added context %s (token validated)\n", name)
-		if store.Active == name {
+		if active {
 			fmt.Println("it is the first context, so it is now active")
 		}
 		return nil
@@ -409,8 +371,10 @@ func cmdContext(args []string) error {
 
 		// Fail on an unknown name before asking anything; asking
 		// "delete foo?" about a foo that does not exist is misleading.
-		if _, err := store.Get(name); err != nil {
+		if exists, err := hasContext(svc, name); err != nil {
 			return err
+		} else if !exists {
+			return fmt.Errorf("%w: %q", config.ErrNotFound, name)
 		}
 
 		// The store may hold the only copy of this token, so deleting is
@@ -425,13 +389,8 @@ func cmdContext(args []string) error {
 			return nil
 		}
 
-		// Remove clears the active marker if this was the active context,
-		// so remember that first to tell the user afterwards.
-		wasActive := store.Active == name
-		if err := store.Remove(name); err != nil {
-			return err
-		}
-		if err := config.Save(st, store); err != nil {
+		wasActive, err := svc.Delete(name)
+		if err != nil {
 			return err
 		}
 

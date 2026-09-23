@@ -1,7 +1,11 @@
 import './style.css';
 import './app.css';
 
-import {AddContext, Contexts, DeleteContext, Init, Status, UseContext} from '../wailsjs/go/main/App';
+import {
+    AddContext, ConsoleURL, Contexts, DeleteContext, Init, Preflight, Status, UseContext,
+} from '../wailsjs/go/main/App';
+import {preflight} from '../wailsjs/go/models';
+import {BrowserOpenURL} from '../wailsjs/runtime/runtime';
 import {ResourceView, resourceViews} from './resources';
 
 // The page only displays what Go returns. Messages are written in Go; the
@@ -46,6 +50,23 @@ document.querySelector('#app')!.innerHTML = `
           <tbody id="res-body"></tbody>
         </table>
       </section>
+      <section id="preflight" hidden>
+        <h2>Preflight</h2>
+        <form id="pf-form" class="add-form" autocomplete="off">
+          <input id="pf-query" class="wide" type="text" spellcheck="false"
+                 placeholder="fsn1, nbg1, hel1  or  ccx13 ash  (empty: everything)">
+          <button class="btn" type="submit">Check</button>
+        </form>
+        <p id="pf-source" class="muted"></p>
+        <div id="pf-result"></div>
+        <p class="muted">Availability only - not a quota check; project limits can still fail a create.</p>
+      </section>
+      <section id="console" hidden>
+        <h2>API tokens and members</h2>
+        <p class="muted">API tokens and project members cannot be listed or managed through the Hetzner API.</p>
+        <button id="open-console" class="btn">Open Hetzner Console</button>
+        <p id="console-url" class="muted"></p>
+      </section>
     </main>
 `;
 
@@ -68,9 +89,18 @@ const resSource = document.getElementById('res-source')!;
 const resTable = document.getElementById('res-table')!;
 const resHead = document.getElementById('res-head')!;
 const resBody = document.getElementById('res-body')!;
+const preflightEl = document.getElementById('preflight')!;
+const pfForm = document.getElementById('pf-form') as HTMLFormElement;
+const pfQuery = document.getElementById('pf-query') as HTMLInputElement;
+const pfSource = document.getElementById('pf-source')!;
+const pfResult = document.getElementById('pf-result')!;
+const consoleEl = document.getElementById('console')!;
+const consoleUrlEl = document.getElementById('console-url')!;
 
-// The open tab: null is Contexts, otherwise one resource type.
-let current: ResourceView<any> | null = null;
+// The open tab: null is Contexts, a string is one of the two fixed panels,
+// otherwise one resource type.
+type Tab = ResourceView<any> | 'preflight' | 'console' | null;
+let current: Tab = null;
 
 // Bumped on every refresh. A slow response from an earlier refresh (say, the
 // tab clicked before this one) sees a newer number and does not render.
@@ -146,7 +176,7 @@ function renderContext(name: string, active: boolean): HTMLLIElement {
 }
 
 function renderTabs() {
-    const tab = (text: string, view: ResourceView<any> | null) => {
+    const tab = (text: string, view: Tab) => {
         const b = document.createElement('button');
         b.className = 'tab';
         b.textContent = text;
@@ -158,7 +188,12 @@ function renderTabs() {
         });
         return b;
     };
-    tabsEl.replaceChildren(tab('Contexts', null), ...resourceViews.map(v => tab(v.title, v)));
+    tabsEl.replaceChildren(
+        tab('Contexts', null),
+        ...resourceViews.map(v => tab(v.title, v)),
+        tab('Preflight', 'preflight'),
+        tab('Tokens & Members', 'console'),
+    );
 }
 
 async function showContexts(gen: number) {
@@ -209,6 +244,82 @@ async function showResource(view: ResourceView<any>, active: string, gen: number
     resTable.hidden = false;
 }
 
+// availabilityTable shows server types with the columns `hao preflight` prints.
+function availabilityTable(rows: preflight.Availability[]): HTMLTableElement {
+    const table = document.createElement('table');
+    table.className = 'table';
+    const head = table.createTHead().insertRow();
+    for (const title of ['Type', 'Location', 'State', 'Cores', 'RAM GB', 'Disk GB', 'Arch', 'Notes']) {
+        const th = document.createElement('th');
+        th.textContent = title;
+        head.append(th);
+    }
+    const body = table.createTBody();
+    for (const a of rows) {
+        const notes = [];
+        if (a.recommended) {
+            notes.push('recommended');
+        }
+        if (a.deprecated) {
+            notes.push('deprecated');
+        }
+        const tr = body.insertRow();
+        for (const v of [a.server_type, a.location, a.available ? 'available' : 'unavailable',
+            a.cores, a.memory_gb.toFixed(1), a.disk_gb, a.architecture, notes.join(',')]) {
+            tr.insertCell().textContent = String(v);
+        }
+    }
+    return table;
+}
+
+// showPreflight runs the query in the field, the way a resource tab fetches
+// its list: on opening the tab, on Check, and on Refresh. What the words mean
+// is decided in Go, shared with the CLI.
+async function showPreflight(active: string, gen: number) {
+    pfResult.replaceChildren();
+    if (!active) {
+        pfSource.textContent = 'No active project. Pick one under Contexts.';
+        return;
+    }
+    pfSource.textContent = 'Checking…';
+    const res = await Preflight(pfQuery.value);
+    if (gen !== generation) {
+        return;
+    }
+    const ans = res.answer;
+    pfSource.textContent = `Project ${res.context}:`;
+    switch (ans.mode) {
+    case 'all':
+        pfResult.append(availabilityTable(ans.all));
+        break;
+    case 'lookup': {
+        const p = document.createElement('p');
+        p.className = 'answer';
+        p.textContent = `${ans.serverType} in ${ans.location}: ${ans.available ? 'available' : 'not available right now'}`;
+        pfResult.append(p);
+        break;
+    }
+    case 'locations':
+        for (const g of ans.groups) {
+            const h = document.createElement('h3');
+            h.textContent = `${g.location} (${g.city}): ${g.available.length} server types available`;
+            pfResult.append(h);
+            if (g.available.length > 0) {
+                pfResult.append(availabilityTable(g.available));
+            }
+        }
+        break;
+    }
+}
+
+async function showConsole(gen: number) {
+    const url = await ConsoleURL();
+    if (gen !== generation) {
+        return;
+    }
+    consoleUrlEl.textContent = url;
+}
+
 async function refresh() {
     const gen = ++generation;
     renderTabs();
@@ -233,13 +344,19 @@ async function refresh() {
         setupEl.hidden = status.initialized;
         tabsEl.hidden = !status.initialized;
         manageEl.hidden = !status.initialized || current !== null;
-        resourceEl.hidden = !status.initialized || current === null;
+        resourceEl.hidden = !status.initialized || current === null || typeof current === 'string';
+        preflightEl.hidden = !status.initialized || current !== 'preflight';
+        consoleEl.hidden = !status.initialized || current !== 'console';
         if (!status.initialized) {
             return;
         }
 
         if (current === null) {
             await showContexts(gen);
+        } else if (current === 'preflight') {
+            await showPreflight(status.active, gen);
+        } else if (current === 'console') {
+            await showConsole(gen);
         } else {
             await showResource(current, status.active, gen);
         }
@@ -248,6 +365,7 @@ async function refresh() {
             return;
         }
         resSource.textContent = '';
+        pfSource.textContent = '';
         showError(err);
     }
 }
@@ -255,6 +373,18 @@ async function refresh() {
 document.getElementById('refresh')!.addEventListener('click', () => {
     clearMessages();
     refresh();
+});
+
+pfForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    clearMessages();
+    refresh();
+});
+
+// Opened in the system browser: the Console needs the user's own login,
+// which does not belong inside this window.
+document.getElementById('open-console')!.addEventListener('click', async () => {
+    BrowserOpenURL(await ConsoleURL());
 });
 
 document.getElementById('init')!.addEventListener('click', () =>

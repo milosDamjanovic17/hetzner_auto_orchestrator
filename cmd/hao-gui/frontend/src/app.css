@@ -182,3 +182,12 @@ main {
 .add-form input[type="password"] {
     flex: 1;
 }
+
+.add-form input.wide {
+    flex: 1;
+}
+
+.answer {
+    font-size: 1.25rem;
+    font-weight: bold;
+}

@@ -7,6 +7,8 @@ export function AddContext(arg1:string,arg2:string):Promise<void>;
 
 export function Certificates():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Certificate_>;
 
+export function ConsoleURL():Promise<string>;
+
 export function Contexts():Promise<Array<service.ContextInfo>>;
 
 export function DeleteContext(arg1:string):Promise<void>;
@@ -20,6 +22,8 @@ export function Init():Promise<void>;
 export function LoadBalancers():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_LoadBalancer_>;
 
 export function Networks():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Network_>;
+
+export function Preflight(arg1:string):Promise<main.PreflightResult>;
 
 export function SSHKeys():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_SSHKey_>;
 

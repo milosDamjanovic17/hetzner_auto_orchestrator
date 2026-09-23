@@ -517,6 +517,38 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class PreflightResult {
+	    context: string;
+	    answer: preflight.Answer;
+	
+	    static createFrom(source: any = {}) {
+	        return new PreflightResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.context = source["context"];
+	        this.answer = this.convertValues(source["answer"], preflight.Answer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Status {
 	    initialized: boolean;
 	    active: string;
@@ -533,6 +565,116 @@ export namespace main {
 	        this.envTokenIgnored = source["envTokenIgnored"];
 	    }
 	}
+
+}
+
+export namespace preflight {
+	
+	export class LocationAvailability {
+	    location: string;
+	    city: string;
+	    available: Availability[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LocationAvailability(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.location = source["location"];
+	        this.city = source["city"];
+	        this.available = this.convertValues(source["available"], Availability);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Availability {
+	    server_type: string;
+	    location: string;
+	    city: string;
+	    available: boolean;
+	    recommended: boolean;
+	    deprecated: boolean;
+	    cores: number;
+	    memory_gb: number;
+	    disk_gb: number;
+	    architecture: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Availability(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.server_type = source["server_type"];
+	        this.location = source["location"];
+	        this.city = source["city"];
+	        this.available = source["available"];
+	        this.recommended = source["recommended"];
+	        this.deprecated = source["deprecated"];
+	        this.cores = source["cores"];
+	        this.memory_gb = source["memory_gb"];
+	        this.disk_gb = source["disk_gb"];
+	        this.architecture = source["architecture"];
+	    }
+	}
+	export class Answer {
+	    mode: string;
+	    all: Availability[];
+	    serverType: string;
+	    location: string;
+	    available: boolean;
+	    groups: LocationAvailability[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Answer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.all = this.convertValues(source["all"], Availability);
+	        this.serverType = source["serverType"];
+	        this.location = source["location"];
+	        this.available = source["available"];
+	        this.groups = this.convertValues(source["groups"], LocationAvailability);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 

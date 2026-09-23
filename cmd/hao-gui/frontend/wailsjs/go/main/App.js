@@ -10,6 +10,10 @@ export function Certificates() {
   return window['go']['main']['App']['Certificates']();
 }
 
+export function ConsoleURL() {
+  return window['go']['main']['App']['ConsoleURL']();
+}
+
 export function Contexts() {
   return window['go']['main']['App']['Contexts']();
 }
@@ -36,6 +40,10 @@ export function LoadBalancers() {
 
 export function Networks() {
   return window['go']['main']['App']['Networks']();
+}
+
+export function Preflight(arg1) {
+  return window['go']['main']['App']['Preflight'](arg1);
 }
 
 export function SSHKeys() {

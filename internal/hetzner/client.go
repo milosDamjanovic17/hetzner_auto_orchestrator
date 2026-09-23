@@ -14,6 +14,11 @@ import (
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
+// ConsoleURL is where API tokens and project members are managed: the API has
+// no endpoints for either. Checked 2026-09-23: the old console.hetzner.cloud
+// redirects here.
+const ConsoleURL = "https://console.hetzner.com/"
+
 // ErrUnauthorized means the token was rejected. Kept distinct from transport
 // failures because the two need completely different messages: one is "fix your
 // token", the other is "check your connection".

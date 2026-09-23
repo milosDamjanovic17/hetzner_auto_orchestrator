@@ -4,16 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/hetzner"
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/preflight"
 	"github.com/milosDamjanovic17/hetzner_auto_orchestrator/internal/service"
 )
-
-// consoleURL is where API tokens and project members are managed. Checked
-// 2026-09-23: the old console.hetzner.cloud redirects here.
-const consoleURL = "https://console.hetzner.com/"
 
 // resource is one listable Hetzner resource type as the CLI exposes it.
 type resource struct {
@@ -157,9 +152,7 @@ func cmdList(noun string, r resource, args []string) error {
 // Arguments may be separated by commas, spaces or both, so `fsn1, nbg1`,
 // `fsn1,nbg1` and `fsn1 nbg1` are the same request.
 func cmdPreflight(args []string) error {
-	words := strings.FieldsFunc(strings.ToLower(strings.Join(args, " ")), func(r rune) bool {
-		return r == ',' || unicode.IsSpace(r)
-	})
+	words := preflight.Words(strings.Join(args, " "))
 
 	svc, err := service.Open()
 	if err != nil {
@@ -179,31 +172,25 @@ func cmdPreflight(args []string) error {
 		return err
 	}
 
-	switch {
-	case len(words) == 0:
-		for _, a := range all {
+	ans, err := preflight.Ask(all, words)
+	if err != nil {
+		return err
+	}
+	switch ans.Mode {
+	case preflight.ModeAll:
+		for _, a := range ans.All {
 			printAvailability(a)
 		}
 
-	// Two words where the first is not a location: `<type> <location>`.
-	// Otherwise `fsn1 nbg1` would be read as server type "fsn1".
-	case len(words) == 2 && !preflight.IsLocation(all, words[0]):
-		ok, err := preflight.Lookup(all, words[0], words[1])
-		if err != nil {
-			return err
-		}
-		if ok {
-			fmt.Printf("%s in %s: available\n", words[0], words[1])
+	case preflight.ModeLookup:
+		if ans.Available {
+			fmt.Printf("%s in %s: available\n", ans.ServerType, ans.Location)
 		} else {
-			fmt.Printf("%s in %s: not available right now\n", words[0], words[1])
+			fmt.Printf("%s in %s: not available right now\n", ans.ServerType, ans.Location)
 		}
 
-	default:
-		groups, err := preflight.AvailableIn(all, words)
-		if err != nil {
-			return err
-		}
-		for i, g := range groups {
+	case preflight.ModeLocations:
+		for i, g := range ans.Groups {
 			if i > 0 {
 				fmt.Println()
 			}
@@ -244,6 +231,6 @@ func cmdConsoleOnly(noun string) error {
 		what = "project members"
 	}
 	fmt.Printf("%s cannot be listed or managed through the Hetzner API.\n", what)
-	fmt.Printf("manage them in the Hetzner Console: %s\n", consoleURL)
+	fmt.Printf("manage them in the Hetzner Console: %s\n", hetzner.ConsoleURL)
 	return nil
 }

@@ -2,7 +2,11 @@ package hetzner
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"time"
+
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 // The nine resource types Phase 1 lists. All reachable with the single project
@@ -177,6 +181,12 @@ func (c *Client) FloatingIPs(ctx context.Context) ([]FloatingIP, error) {
 	if err != nil {
 		return nil, classify(err, "listing floating IPs")
 	}
+	names, err := c.serverNames(ctx, slices.ContainsFunc(raw, func(ip *hcloud.FloatingIP) bool {
+		return ip.Server != nil
+	}), "listing floating IPs")
+	if err != nil {
+		return nil, err
+	}
 	out := make([]FloatingIP, 0, len(raw))
 	for _, ip := range raw {
 		v := FloatingIP{ID: ip.ID, Name: ip.Name, Type: string(ip.Type)}
@@ -187,7 +197,7 @@ func (c *Client) FloatingIPs(ctx context.Context) ([]FloatingIP, error) {
 			v.HomeLocation = ip.HomeLocation.Name
 		}
 		if ip.Server != nil {
-			v.AssignedTo = ip.Server.Name
+			v.AssignedTo = serverName(names, ip.Server.ID)
 		}
 		out = append(out, v)
 	}
@@ -199,6 +209,12 @@ func (c *Client) Volumes(ctx context.Context) ([]Volume, error) {
 	if err != nil {
 		return nil, classify(err, "listing volumes")
 	}
+	names, err := c.serverNames(ctx, slices.ContainsFunc(raw, func(vol *hcloud.Volume) bool {
+		return vol.Server != nil
+	}), "listing volumes")
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Volume, 0, len(raw))
 	for _, vol := range raw {
 		v := Volume{ID: vol.ID, Name: vol.Name, Status: string(vol.Status), SizeGB: vol.Size}
@@ -206,11 +222,38 @@ func (c *Client) Volumes(ctx context.Context) ([]Volume, error) {
 			v.Location = vol.Location.Name
 		}
 		if vol.Server != nil {
-			v.AttachedTo = vol.Server.Name
+			v.AttachedTo = serverName(names, vol.Server.ID)
 		}
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// serverNames maps server ID to name. The API reports the server a volume or
+// floating IP is attached to by ID only, so the SDK's Server there has no
+// name. Skipped when nothing is attached: the common case costs no request.
+func (c *Client) serverNames(ctx context.Context, needed bool, op string) (map[int64]string, error) {
+	if !needed {
+		return nil, nil
+	}
+	servers, err := c.api.Server.All(ctx)
+	if err != nil {
+		return nil, classify(err, op)
+	}
+	names := make(map[int64]string, len(servers))
+	for _, s := range servers {
+		names[s.ID] = s.Name
+	}
+	return names, nil
+}
+
+// serverName names an attached server. One deleted between the two requests
+// has no name any more, but "attached" must still never read as unattached.
+func serverName(names map[int64]string, id int64) string {
+	if name, ok := names[id]; ok {
+		return name
+	}
+	return fmt.Sprintf("server %d", id)
 }
 
 func (c *Client) SSHKeys(ctx context.Context) ([]SSHKey, error) {

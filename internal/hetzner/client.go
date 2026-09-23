@@ -1,7 +1,7 @@
 // Package hetzner wraps the Hetzner Cloud SDK.
 //
 // Every type returned from here is defined in this package, not borrowed from
-// the SDK. Two reasons: the Lorca GUI will JSON-marshal these across the Go to
+// the SDK. Two reasons: the Wails GUI will JSON-marshal these across the Go to
 // JS boundary, so they must stay small and serializable; and no result type may
 // ever carry a token field, so the credential cannot leak into the web layer.
 package hetzner

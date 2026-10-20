@@ -4,10 +4,10 @@ A tool for managing Hetzner Cloud projects without living in the terminal.
 It comes as a desktop app (`hao-gui`, built with Wails) and a command-line
 tool (`hao`). Both use the same encrypted store and the same active project.
 
-**Status:** the desktop app lists what exists in a project (read-only). The
-command-line tool also creates, powers, backs up, snapshots, protects and
-deletes **servers** (see [Servers](#servers-changes-things-at-hetzner)).
-The desktop app gets those server actions next.
+**Status:** both list what exists in a project. Both also create, power,
+back up, snapshot, protect and delete **servers** (see
+[Servers](#servers-changes-things-at-hetzner)). Every other resource type is
+read-only.
 
 ## Getting started
 
@@ -219,6 +219,11 @@ hao server delete    web-1     # type the name
 
 A server can be named or given by its ID.
 
+In the desktop app the same actions are on the **Servers** tab: **Create
+server** above the list, and an **Actions** button on each row. The rules
+below are the same, checked by the same code. Buttons that would be refused
+are greyed out; hover them to see why.
+
 - **Create costs money.** Before every create, `hao` fetches the live prices
   and shows the hourly price, the monthly cap, the primary IPv4, and an
   estimate for 30 days running 24/7. You type `yes` to go ahead. A server is
@@ -255,7 +260,6 @@ hao preflight
 
 ## Not yet
 
-- Server actions in the desktop app (next).
 - Writes for every other resource type (load balancers, networks, firewalls,
   volumes, ...).
 - Deleting snapshots and backups, rebuild, rescue, resize: use the Console.

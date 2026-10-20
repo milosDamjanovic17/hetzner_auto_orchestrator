@@ -1,9 +1,11 @@
 package hetzner
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
@@ -46,6 +48,35 @@ func (c *Client) Server(ctx context.Context, id int64) (Server, error) {
 		return Server{}, fmt.Errorf("%s: %w", op, ErrNotFound)
 	}
 	return serverFromSDK(s), nil
+}
+
+// Image is an OS image a server can be created from. Hetzner lists the same
+// name once per architecture; CreateServer picks the one matching the type.
+type Image struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Architecture string `json:"architecture"`
+}
+
+// SystemImages lists the OS images offered for new servers, sorted by name.
+// Deprecated ones are left out (phase-2b §5), as are snapshots and backups:
+// hao creates servers from OS images only.
+func (c *Client) SystemImages(ctx context.Context) ([]Image, error) {
+	images, err := c.api.Image.AllWithOpts(ctx, hcloud.ImageListOpts{Type: []hcloud.ImageType{hcloud.ImageTypeSystem}})
+	if err != nil {
+		return nil, classify(err, "listing images")
+	}
+	out := make([]Image, 0, len(images))
+	for _, i := range images {
+		if i.Type != hcloud.ImageTypeSystem || !i.Deprecated.IsZero() {
+			continue
+		}
+		out = append(out, Image{Name: i.Name, Description: i.Description, Architecture: string(i.Architecture)})
+	}
+	slices.SortFunc(out, func(a, b Image) int {
+		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.Architecture, b.Architecture))
+	})
+	return out, nil
 }
 
 // CreateServerOpts names everything as the user typed or picked it.

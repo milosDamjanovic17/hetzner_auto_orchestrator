@@ -311,7 +311,8 @@ func TestEstimateNamesTheProject(t *testing.T) {
 // Shown before a snapshot: the most it can cost per month. A snapshot is at
 // most the disk size, so per-GB x disk is a safe upper bound.
 func TestImageCostBoundsSnapshotByDisk(t *testing.T) {
-	p := hetzner.Prices{ImagePerGBMonth: "0.0143", BackupPercent: "20.00"}
+	// BackupPercent as the live API sends it (Step 3 gate, 2026-10-20).
+	p := hetzner.Prices{ImagePerGBMonth: "0.0143", BackupPercent: "20.0000000000"}
 	c, err := imageCost(p, 40)
 	if err != nil || c.SnapshotMax != "0.5720" || c.PerGBMonth != "0.0143" || c.BackupPercent != "20.00" {
 		t.Errorf("imageCost = %+v, %v; want max 0.5720, 0.0143/GB, backup 20.00", c, err)

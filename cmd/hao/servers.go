@@ -145,7 +145,7 @@ func cmdServer(args []string) error {
 			return err
 		}
 		fmt.Printf("Manual backup of %q. Backups are billed through the backup option:\n", srv.Name)
-		fmt.Printf("%s %% of the server price (Hetzner's live price list).\n", orUnknown(cost.BackupPercent))
+		fmt.Printf("%s%% of the server price (Hetzner's live price list).\n", orUnknown(cost.BackupPercent))
 		fmt.Println("Hetzner keeps up to 7 backups; when all are taken, the oldest is deleted.")
 		if !confirmed("Create backup?") {
 			fmt.Println("cancelled, nothing changed")

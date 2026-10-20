@@ -191,3 +191,67 @@ main {
     font-size: 1.25rem;
     font-weight: bold;
 }
+
+/* Server actions (phase-2b): a full-width row under the server. */
+.table tr.detail td {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.server-actions,
+.create {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.server-actions p,
+.create p,
+.create h3,
+.create .cost {
+    flex-basis: 100%;
+    margin: 0.25rem 0;
+}
+
+.create {
+    margin-bottom: 1rem;
+}
+
+.create fieldset {
+    flex-basis: 100%;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.create .keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.server-actions input,
+.create input[type="text"],
+.create select {
+    height: 26px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 3px;
+}
+
+.cost .total {
+    font-weight: bold;
+}
+
+.inline-error {
+    color: rgb(255, 140, 140);
+}
+
+/* Disabled because not allowed (tooltip says why), not because busy. */
+.server-actions .btn:disabled,
+.create .btn:disabled {
+    cursor: not-allowed;
+}

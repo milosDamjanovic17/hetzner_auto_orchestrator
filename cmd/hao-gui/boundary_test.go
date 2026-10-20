@@ -98,7 +98,8 @@ func TestBoundMethodsAreTheOnesTheFrontendCalls(t *testing.T) {
 	for _, m := range boundMethods() {
 		got[m.Name] = true
 	}
-	for _, name := range []string{"Status", "Contexts", "AddContext", "Servers", "Zones", "Preflight", "ConsoleURL"} {
+	for _, name := range []string{"Status", "Contexts", "AddContext", "Servers", "Zones", "Preflight", "ConsoleURL",
+		"CreateOptions", "Estimate", "CreateServer", "DeleteServer"} {
 		if !got[name] {
 			t.Errorf("method %s not found on *App; the boundary test is not seeing the bound methods", name)
 		}

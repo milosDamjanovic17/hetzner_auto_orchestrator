@@ -2,6 +2,7 @@ import {
     Certificates, Firewalls, FloatingIPs, LoadBalancers, Networks, Servers, SSHKeys, Volumes, Zones,
 } from '../wailsjs/go/main/App';
 import {hetzner} from '../wailsjs/go/models';
+import {Act, createPanel, serverActions} from './servers';
 
 // One tab per listable resource type, in the CLI's order. Columns match what
 // `hao <noun> list` prints, so the two drivers show the same facts.
@@ -16,6 +17,10 @@ export type ResourceView<T> = {
     plural: string; // for the empty state: "no servers in this project"
     fetch: () => Promise<Listing<T>>;
     columns: Column<T>[];
+    // Servers only (phase-2b): per-row actions and a panel above the table.
+    // Both get the listing's project: the one every write is checked against.
+    rowActions?: (item: T, project: string, act: Act) => HTMLElement;
+    panel?: (project: string, act: Act) => HTMLElement;
 };
 
 // view type-checks one definition against its item type, then erases it so
@@ -44,6 +49,8 @@ export const resourceViews: ResourceView<any>[] = [
             {title: 'Location', value: s => s.location},
             {title: 'Public IPv4', value: s => orDash(s.public_ipv4)},
         ],
+        rowActions: serverActions,
+        panel: createPanel,
     }),
     view<hetzner.LoadBalancer>({
         title: 'Load balancers', plural: 'load balancers', fetch: LoadBalancers, columns: [

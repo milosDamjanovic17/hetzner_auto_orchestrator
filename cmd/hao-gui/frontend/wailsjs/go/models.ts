@@ -79,6 +79,22 @@ export namespace hetzner {
 	        this.assigned_to = source["assigned_to"];
 	    }
 	}
+	export class Image {
+	    name: string;
+	    description: string;
+	    architecture: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Image(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.architecture = source["architecture"];
+	    }
+	}
 	export class LoadBalancer {
 	    id: number;
 	    name: string;
@@ -148,6 +164,11 @@ export namespace hetzner {
 	    public_ipv4: string;
 	    // Go type: time
 	    created: any;
+	    disk_gb: number;
+	    managed: boolean;
+	    backups: boolean;
+	    delete_protected: boolean;
+	    rebuild_protected: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Server(source);
@@ -162,6 +183,11 @@ export namespace hetzner {
 	        this.location = source["location"];
 	        this.public_ipv4 = source["public_ipv4"];
 	        this.created = this.convertValues(source["created"], null);
+	        this.disk_gb = source["disk_gb"];
+	        this.managed = source["managed"];
+	        this.backups = source["backups"];
+	        this.delete_protected = source["delete_protected"];
+	        this.rebuild_protected = source["rebuild_protected"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -229,6 +255,42 @@ export namespace hetzner {
 
 export namespace main {
 	
+	export class CreateOptions {
+	    context: string;
+	    types: preflight.Availability[];
+	    images: hetzner.Image[];
+	    ssh_keys: hetzner.SSHKey[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.context = source["context"];
+	        this.types = this.convertValues(source["types"], preflight.Availability);
+	        this.images = this.convertValues(source["images"], hetzner.Image);
+	        this.ssh_keys = this.convertValues(source["ssh_keys"], hetzner.SSHKey);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Certificate_ {
 	    context: string;
 	    items: hetzner.Certificate[];
@@ -692,6 +754,69 @@ export namespace service {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.active = source["active"];
+	    }
+	}
+	export class Estimate {
+	    context: string;
+	    // Go type: time
+	    fetched: any;
+	    type: string;
+	    location: string;
+	    hourly: string;
+	    monthly: string;
+	    ipv4: string;
+	    total: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Estimate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.context = source["context"];
+	        this.fetched = this.convertValues(source["fetched"], null);
+	        this.type = source["type"];
+	        this.location = source["location"];
+	        this.hourly = source["hourly"];
+	        this.monthly = source["monthly"];
+	        this.ipv4 = source["ipv4"];
+	        this.total = source["total"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ImageCost {
+	    context: string;
+	    per_gb_month: string;
+	    snapshot_max: string;
+	    backup_percent: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageCost(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.context = source["context"];
+	        this.per_gb_month = source["per_gb_month"];
+	        this.snapshot_max = source["snapshot_max"];
+	        this.backup_percent = source["backup_percent"];
 	    }
 	}
 

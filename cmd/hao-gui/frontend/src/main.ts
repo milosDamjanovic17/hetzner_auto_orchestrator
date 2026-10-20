@@ -6,6 +6,7 @@ import {
 } from '../wailsjs/go/main/App';
 import {preflight} from '../wailsjs/go/models';
 import {BrowserOpenURL} from '../wailsjs/runtime/runtime';
+import {button, message} from './dom';
 import {ResourceView, resourceViews} from './resources';
 
 // The page only displays what Go returns. Messages are written in Go; the
@@ -45,6 +46,7 @@ document.querySelector('#app')!.innerHTML = `
       <section id="resource" hidden>
         <h2 id="res-title"></h2>
         <p id="res-source" class="muted"></p>
+        <div id="res-panel"></div>
         <table id="res-table" class="table" hidden>
           <thead><tr id="res-head"></tr></thead>
           <tbody id="res-body"></tbody>
@@ -86,6 +88,7 @@ const addSubmit = document.getElementById('add-submit') as HTMLButtonElement;
 const resourceEl = document.getElementById('resource')!;
 const resTitle = document.getElementById('res-title')!;
 const resSource = document.getElementById('res-source')!;
+const resPanel = document.getElementById('res-panel')!;
 const resTable = document.getElementById('res-table')!;
 const resHead = document.getElementById('res-head')!;
 const resBody = document.getElementById('res-body')!;
@@ -107,7 +110,7 @@ let current: Tab = null;
 let generation = 0;
 
 function showError(err: unknown) {
-    errorEl.textContent = err instanceof Error ? err.message : String(err);
+    errorEl.textContent = message(err);
     errorEl.hidden = false;
 }
 
@@ -118,24 +121,16 @@ function clearMessages() {
 
 // act runs one user action, shows its error or notice, then reloads
 // everything from Go: the page never guesses what the store now holds.
-async function act(action: () => Promise<void>, notice: string) {
+// A server write still running at Hetzner returns Go's note, shown instead.
+async function act(action: () => Promise<string | void>, notice: string) {
     clearMessages();
     try {
-        await action();
-        noticeEl.textContent = notice;
+        noticeEl.textContent = (await action()) || notice;
         noticeEl.hidden = false;
     } catch (err) {
         showError(err);
     }
     await refresh();
-}
-
-function button(text: string, onClick: () => void, extraClass = ''): HTMLButtonElement {
-    const b = document.createElement('button');
-    b.className = `btn small ${extraClass}`.trim();
-    b.textContent = text;
-    b.addEventListener('click', onClick);
-    return b;
 }
 
 // confirmDelete swaps the row's buttons for a question that names the
@@ -211,6 +206,7 @@ async function showContexts(gen: number) {
 async function showResource(view: ResourceView<any>, active: string, gen: number) {
     resTitle.textContent = view.title;
     resTable.hidden = true;
+    resPanel.replaceChildren();
     if (!active) {
         resSource.textContent = 'No active project. Pick one under Contexts.';
         return;
@@ -221,7 +217,11 @@ async function showResource(view: ResourceView<any>, active: string, gen: number
         return;
     }
     // The project named here comes from the response, not from the header:
-    // it is the one the data was actually fetched with.
+    // it is the one the data was actually fetched with, and the one every
+    // write from this view is checked against.
+    if (view.panel) {
+        resPanel.append(view.panel(listing.context, act));
+    }
     if (listing.items.length === 0) {
         resSource.textContent = `No ${view.plural} in project ${listing.context}.`;
         return;
@@ -232,12 +232,18 @@ async function showResource(view: ResourceView<any>, active: string, gen: number
         th.textContent = c.title;
         return th;
     }));
+    if (view.rowActions) {
+        resHead.append(document.createElement('th'));
+    }
     resBody.replaceChildren(...listing.items.map(item => {
         const tr = document.createElement('tr');
         for (const c of view.columns) {
             const td = document.createElement('td');
             td.textContent = String(c.value(item));
             tr.append(td);
+        }
+        if (view.rowActions) {
+            tr.insertCell().append(view.rowActions(item, listing.context, act));
         }
         return tr;
     }));

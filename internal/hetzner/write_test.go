@@ -276,3 +276,32 @@ func TestPricesKeepHetznersExactGrossAmounts(t *testing.T) {
 		t.Errorf("image %q VAT %q backup %q, want 0.0143, 19.00, 20.00", p.ImagePerGBMonth, p.VATRate, p.BackupPercent)
 	}
 }
+
+// The create form offers only what a server can be created from: OS images
+// that are not deprecated. A snapshot or a deprecated image in the list
+// would let the user pick something hao does not intend to create from.
+func TestSystemImagesOffersOnlyCurrentOSImages(t *testing.T) {
+	name := func(s string) *string { return &s }
+	old := time.Now()
+	c, _ := fakeAPI(t, map[string]any{
+		"/images": func(r *http.Request) any {
+			if got := r.URL.Query()["type"]; len(got) != 1 || got[0] != "system" {
+				t.Errorf("images listed with type %v, want [system]", got)
+			}
+			return schema.ImageListResponse{Images: []schema.Image{
+				{ID: 1, Type: "system", Name: name("ubuntu-24.04"), Architecture: "x86"},
+				{ID: 2, Type: "system", Name: name("ubuntu-20.04"), Architecture: "x86", Deprecated: &old},
+				{ID: 3, Type: "snapshot", Name: nil, Description: "gate", Architecture: "x86"},
+				{ID: 4, Type: "system", Name: name("debian-12"), Architecture: "arm"},
+			}}
+		},
+	})
+	got, err := c.SystemImages(testCtx(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Image{{Name: "debian-12", Architecture: "arm"}, {Name: "ubuntu-24.04", Architecture: "x86"}}
+	if !slices.Equal(got, want) {
+		t.Errorf("SystemImages = %+v, want %+v", got, want)
+	}
+}

@@ -5,17 +5,29 @@ import {service} from '../models';
 
 export function AddContext(arg1:string,arg2:string):Promise<void>;
 
+export function BackupServer(arg1:string,arg2:number):Promise<string>;
+
 export function Certificates():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Certificate_>;
 
 export function ConsoleURL():Promise<string>;
 
 export function Contexts():Promise<Array<service.ContextInfo>>;
 
+export function CreateOptions():Promise<main.CreateOptions>;
+
+export function CreateServer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:Array<string>):Promise<string>;
+
 export function DeleteContext(arg1:string):Promise<void>;
+
+export function DeleteServer(arg1:string,arg2:number,arg3:string):Promise<string>;
+
+export function Estimate(arg1:string,arg2:string):Promise<service.Estimate>;
 
 export function Firewalls():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Firewall_>;
 
 export function FloatingIPs():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_FloatingIP_>;
+
+export function ImageCost(arg1:number):Promise<service.ImageCost>;
 
 export function Init():Promise<void>;
 
@@ -23,13 +35,21 @@ export function LoadBalancers():Promise<main.Listing_github_com_milosDamjanovic1
 
 export function Networks():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Network_>;
 
+export function PowerServer(arg1:string,arg2:number,arg3:string):Promise<string>;
+
 export function Preflight(arg1:string):Promise<main.PreflightResult>;
+
+export function ProtectServer(arg1:string,arg2:number):Promise<string>;
 
 export function SSHKeys():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_SSHKey_>;
 
 export function Servers():Promise<main.Listing_github_com_milosDamjanovic17_hetzner_auto_orchestrator_internal_hetzner_Server_>;
 
+export function SnapshotServer(arg1:string,arg2:number,arg3:string):Promise<string>;
+
 export function Status():Promise<main.Status>;
+
+export function UnprotectServer(arg1:string,arg2:number,arg3:string):Promise<string>;
 
 export function UseContext(arg1:string):Promise<void>;
 

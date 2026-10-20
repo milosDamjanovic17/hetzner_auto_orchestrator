@@ -314,5 +314,11 @@ func imageCost(p hetzner.Prices, diskGB int) (ImageCost, error) {
 		return ImageCost{}, fmt.Errorf("server disk size unknown (%d GB)", diskGB)
 	}
 	upper := new(big.Rat).Mul(perGB, big.NewRat(int64(diskGB), 1))
-	return ImageCost{PerGBMonth: euro(perGB), SnapshotMax: euro(upper), BackupPercent: p.BackupPercent}, nil
+	c := ImageCost{PerGBMonth: euro(perGB), SnapshotMax: euro(upper)}
+	// The API sends "20.0000000000"; shown as "20.00". Missing stays "",
+	// which drivers print as unknown (it is a percentage, never a price).
+	if r := parsePrice(p.BackupPercent); r != nil {
+		c.BackupPercent = r.FloatString(2)
+	}
+	return c, nil
 }

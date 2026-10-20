@@ -6,6 +6,10 @@ export function AddContext(arg1, arg2) {
   return window['go']['main']['App']['AddContext'](arg1, arg2);
 }
 
+export function BackupServer(arg1, arg2) {
+  return window['go']['main']['App']['BackupServer'](arg1, arg2);
+}
+
 export function Certificates() {
   return window['go']['main']['App']['Certificates']();
 }
@@ -18,8 +22,24 @@ export function Contexts() {
   return window['go']['main']['App']['Contexts']();
 }
 
+export function CreateOptions() {
+  return window['go']['main']['App']['CreateOptions']();
+}
+
+export function CreateServer(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['CreateServer'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function DeleteContext(arg1) {
   return window['go']['main']['App']['DeleteContext'](arg1);
+}
+
+export function DeleteServer(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteServer'](arg1, arg2, arg3);
+}
+
+export function Estimate(arg1, arg2) {
+  return window['go']['main']['App']['Estimate'](arg1, arg2);
 }
 
 export function Firewalls() {
@@ -28,6 +48,10 @@ export function Firewalls() {
 
 export function FloatingIPs() {
   return window['go']['main']['App']['FloatingIPs']();
+}
+
+export function ImageCost(arg1) {
+  return window['go']['main']['App']['ImageCost'](arg1);
 }
 
 export function Init() {
@@ -42,8 +66,16 @@ export function Networks() {
   return window['go']['main']['App']['Networks']();
 }
 
+export function PowerServer(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PowerServer'](arg1, arg2, arg3);
+}
+
 export function Preflight(arg1) {
   return window['go']['main']['App']['Preflight'](arg1);
+}
+
+export function ProtectServer(arg1, arg2) {
+  return window['go']['main']['App']['ProtectServer'](arg1, arg2);
 }
 
 export function SSHKeys() {
@@ -54,8 +86,16 @@ export function Servers() {
   return window['go']['main']['App']['Servers']();
 }
 
+export function SnapshotServer(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SnapshotServer'](arg1, arg2, arg3);
+}
+
 export function Status() {
   return window['go']['main']['App']['Status']();
+}
+
+export function UnprotectServer(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UnprotectServer'](arg1, arg2, arg3);
 }
 
 export function UseContext(arg1) {

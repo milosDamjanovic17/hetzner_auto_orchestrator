@@ -36,6 +36,10 @@ type Service struct {
 	// validate checks a token against Hetzner. A field rather than a direct
 	// call so tests can prove Add's guarantees without a network.
 	validate func(ctx context.Context, token string) error
+
+	// cloudFor builds what server writes talk to. A field for the same
+	// reason as validate: tests prove the guards without a network.
+	cloudFor func(token string) cloud
 }
 
 // Open returns a Service over the default store, creating the age identity if
@@ -55,6 +59,7 @@ func Open() (*Service, error) {
 		validate: func(ctx context.Context, token string) error {
 			return hetzner.NewClient(token).ValidateToken(ctx)
 		},
+		cloudFor: newLiveCloud,
 	}, nil
 }
 

@@ -52,6 +52,16 @@ Listing (active context, read-only):
   hao preflight <loc>, <loc>, ...   server types available in these locations
 
   hao token | hao member   not in the API - points to the Hetzner Console
+
+Servers (active context; changes things at Hetzner, asks first):
+  hao server create <name> <type> <location> <image> <key>[,<key>...]
+                                      shows the cost, then asks; SSH key required
+  hao server delete <name|id>         only servers hao created; type the name
+  hao server poweron|shutdown|poweroff|reboot <name|id>
+  hao server backup <name|id>         manual backup now (backups must be on)
+  hao server snapshot <name|id> [description]
+  hao server protect <name|id>        delete + rebuild protection on
+  hao server unprotect <name|id>      protection off; type the name
 `
 
 func main() {
@@ -83,6 +93,8 @@ func run(args []string) error {
 		return cmdImport()
 	case "context":
 		return cmdContext(args[1:])
+	case "server":
+		return cmdServer(args[1:])
 	case "preflight":
 		return cmdPreflight(args[1:])
 	case "token", "member":

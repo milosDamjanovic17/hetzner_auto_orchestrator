@@ -242,8 +242,9 @@ func TestServerStateForTheGuards(t *testing.T) {
 func TestPricesKeepHetznersExactGrossAmounts(t *testing.T) {
 	c, _ := fakeAPI(t, map[string]any{
 		"/pricing": schema.PricingGetResponse{Pricing: schema.Pricing{
-			VATRate: "19.00",
-			Image:   schema.PricingImage{PricePerGBMonth: schema.Price{Net: "0.0120", Gross: "0.0143"}},
+			VATRate:      "19.00",
+			ServerBackup: schema.PricingServerBackup{Percentage: "20.00"},
+			Image:        schema.PricingImage{PricePerGBMonth: schema.Price{Net: "0.0120", Gross: "0.0143"}},
 			ServerTypes: []schema.PricingServerType{{ID: 1, Name: "cpx02", Prices: []schema.PricingServerTypePrice{{
 				Location:     "fsn1",
 				PriceHourly:  schema.Price{Net: "0.0081", Gross: "0.0096000000000000"},
@@ -271,7 +272,7 @@ func TestPricesKeepHetznersExactGrossAmounts(t *testing.T) {
 	if want := []IPPrice{{Location: "fsn1", Monthly: "0.5000"}}; !slices.Equal(p.PrimaryIPv4, want) {
 		t.Errorf("primary IPv4 = %+v, want %+v", p.PrimaryIPv4, want)
 	}
-	if p.ImagePerGBMonth != "0.0143" || p.VATRate != "19.00" {
-		t.Errorf("image %q VAT %q, want 0.0143 and 19.00", p.ImagePerGBMonth, p.VATRate)
+	if p.ImagePerGBMonth != "0.0143" || p.VATRate != "19.00" || p.BackupPercent != "20.00" {
+		t.Errorf("image %q VAT %q backup %q, want 0.0143, 19.00, 20.00", p.ImagePerGBMonth, p.VATRate, p.BackupPercent)
 	}
 }

@@ -23,6 +23,7 @@ type Server struct {
 	Location   string    `json:"location"`
 	PublicIPv4 string    `json:"public_ipv4"`
 	Created    time.Time `json:"created"`
+	DiskGB     int       `json:"disk_gb"` // upper bound for a snapshot's size
 	// State the drivers show and use to disable buttons up front. The
 	// service re-checks before every write: the UI is never the guard.
 	Managed          bool `json:"managed"` // labelled managed-by=hao
@@ -125,6 +126,7 @@ func serverFromSDK(s *hcloud.Server) Server {
 	}
 	if s.ServerType != nil {
 		v.ServerType = s.ServerType.Name
+		v.DiskGB = s.ServerType.Disk
 	}
 	if s.Location != nil {
 		v.Location = s.Location.Name

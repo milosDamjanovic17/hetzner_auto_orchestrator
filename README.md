@@ -1,20 +1,78 @@
 # hetzner_auto_orchestrator (`hao`)
 
 A tool for managing Hetzner Cloud projects without living in the terminal.
-The goal is a desktop GUI (Wails). Right now it is a command-line tool, `hao`,
-that proves the core works.
+It comes as a desktop app (`hao-gui`, built with Wails) and a command-line
+tool (`hao`). Both use the same encrypted store and the same active project.
 
-**Status: Phase 1, read-only.** `hao` stores Hetzner project tokens encrypted
-and lists what exists in a project. It does not create, change or delete
-anything in Hetzner.
+**Status:** the desktop app lists what exists in a project (read-only). The
+command-line tool also creates, powers, backs up, snapshots, protects and
+deletes **servers** (see [Servers](#servers-changes-things-at-hetzner)).
+The desktop app gets those server actions next.
 
-## Build
+## Getting started
 
-Requires Go 1.27+.
+Everything below is for Windows, in PowerShell, from the repository folder.
+
+### 1. Install the tools
+
+| Tool | Needed for | Check |
+|---|---|---|
+| [Go](https://go.dev/dl/) 1.27 or newer | both | `go version` |
+| [Node.js](https://nodejs.org/) (LTS, includes npm) | desktop app | `node -v`, `npm -v` |
+| Wails CLI **v2.14.0** | desktop app | `wails version` |
+| Microsoft WebView2 runtime | desktop app | already part of Windows 11 |
+
+Install the Wails CLI with Go. The version must match the one in `go.mod`:
+
+```powershell
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.14.0
+wails doctor        # checks Go, Node, npm and WebView2
+```
+
+If `wails` is not found, add `%USERPROFILE%\go\bin` to your `PATH` and open a
+new terminal. `wails doctor` may say `upx` and `nsis` are missing. Both are
+optional (exe compression and an installer) and not needed.
+
+### 2. Build the desktop app
+
+```powershell
+cd cmd/hao-gui
+wails build
+```
+
+The first build also runs `npm install` and takes a minute or two. The app is
+`cmd/hao-gui/build/bin/hao-gui.exe`. Start it by double-clicking it.
+
+While working on the app itself, `wails dev` (in the same folder) opens it with
+live reload instead.
+
+### 3. Build the command-line tool (optional)
 
 ```powershell
 go build -o bin/hao.exe ./cmd/hao
 ```
+
+On a fresh clone, `go build ./...` (all packages at once) fails until
+`wails build` has run once: the desktop app embeds the web files that
+`wails build` produces. Building only `./cmd/hao`, as above, always works.
+
+### 4. First run
+
+1. **Create the store.** In the app, click **Create encrypted store**. Or run `hao init`.
+   This creates the encrypted file for your tokens and puts its key in the
+   Windows Credential Manager.
+2. **Get a token.** In the Hetzner Console, create an API token for your
+   project with **Read & Write** permission (`hao token` prints the Console
+   link). Each Hetzner project has its own tokens.
+3. **Add it.** In the app, open the **Contexts** tab, enter a name (e.g. the
+   project's name) and paste the token. Or run `hao context add <name>`.
+   Hetzner checks the token before it is saved. The first one you add becomes
+   the active project.
+4. **Look around.** The app's tabs (Servers, Load Balancers, ..., Preflight)
+   show the active project. Switch projects with **Use** on the Contexts tab.
+   The app and `hao` always show the same active project.
+
+Already using the `hcloud` CLI? `hao import` adopts its contexts (see below).
 
 ## Where your tokens live
 
@@ -28,9 +86,9 @@ go build -o bin/hao.exe ./cmd/hao
 ## Contexts
 
 A context is a named Hetzner Cloud project token, like in the `hcloud` CLI.
-One context holds one token, and it should be a **Read & Write** token.
-Everything today only reads, but later phases create and delete resources and
-will expect write access. `hao` does not check a token's scope.
+One context holds one token, and it should be a **Read & Write** token: the
+server commands need write access. `hao` does not check a token's scope; a
+read-only token fails at the first write with "token is read-only".
 
 ## Commands
 
@@ -139,7 +197,53 @@ hao member
 Hetzner has no API for either, so these print a link to the Hetzner Console
 (`https://console.hetzner.com/`) instead.
 
-## Quick start
+## Servers (changes things at Hetzner)
+
+These commands act on the **active** project, print `project: <name>` first,
+and ask before doing anything. If the active project changes between the
+question and your answer (e.g. `hao context use` in another window), the
+command is refused and nothing changes.
+
+```powershell
+hao server create web-1 cpx02 fsn1 ubuntu-24.04 my-key   # several keys: key-a,key-b
+hao server poweron  web-1
+hao server shutdown web-1      # the OS shuts down cleanly
+hao server poweroff web-1      # cuts power; unsaved data is lost
+hao server reboot   web-1
+hao server backup   web-1      # manual backup now
+hao server snapshot web-1 before upgrade
+hao server protect   web-1     # delete + rebuild protection on
+hao server unprotect web-1     # type the name
+hao server delete    web-1     # type the name
+```
+
+A server can be named or given by its ID.
+
+- **Create costs money.** Before every create, `hao` fetches the live prices
+  and shows the hourly price, the monthly cap, the primary IPv4, and an
+  estimate for 30 days running 24/7. You type `yes` to go ahead. A server is
+  billed while it **exists**, even when powered off.
+- **An existing SSH key is required** to create a server. `hao` does not
+  create SSH keys and never sets a root password. Add keys in the Hetzner
+  Console; `hao ssh-key list` shows them.
+- **Delete only works on servers `hao` created.** They carry the label
+  `managed-by=hao`. Others are refused: delete them in the Console. You also
+  type the server's name. A typo cancels.
+- **Protection** turns delete and rebuild protection on or off together
+  (Hetzner does not allow one without the other). A protected server cannot
+  be deleted until you `unprotect` it, which also asks for the name.
+- **Backup** needs backups switched on for the server. `hao` never switches
+  them on or off; do that in the Console. Hetzner keeps up to 7 backups and
+  deletes the oldest when a new one is created and all are taken.
+- **Snapshot** shows its price per GB and month first. Snapshots are kept
+  until you delete them in the Console.
+- **"Still running at Hetzner; refresh later"** is not an error: Hetzner
+  accepted the action, it just took longer than the 75 seconds `hao` waits.
+  Check with `hao server list`. Large snapshots often end this way.
+- **"Outcome unknown"** means the connection dropped while the change was
+  being sent. It may or may not have happened; check before retrying.
+
+## Quick start (command line)
 
 ```powershell
 hao init
@@ -149,7 +253,9 @@ hao server list
 hao preflight
 ```
 
-## Not in Phase 1
+## Not yet
 
-Everything is read-only. Creating, changing or deleting Hetzner resources, and
-the desktop GUI, come in later phases.
+- Server actions in the desktop app (next).
+- Writes for every other resource type (load balancers, networks, firewalls,
+  volumes, ...).
+- Deleting snapshots and backups, rebuild, rescue, resize: use the Console.

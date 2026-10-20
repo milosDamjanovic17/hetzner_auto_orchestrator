@@ -10,10 +10,12 @@ import (
 // stay the API's decimal strings: the caller parses them exactly (big.Rat),
 // never through float, because this is money.
 type Prices struct {
-	VATRate         string        `json:"vat_rate"`
-	ImagePerGBMonth string        `json:"image_per_gb_month"`
-	Servers         []ServerPrice `json:"servers"`
-	PrimaryIPv4     []IPPrice     `json:"primary_ipv4"`
+	VATRate         string `json:"vat_rate"`
+	ImagePerGBMonth string `json:"image_per_gb_month"`
+	// The backup option costs this percent of the server price.
+	BackupPercent string        `json:"backup_percent"`
+	Servers       []ServerPrice `json:"servers"`
+	PrimaryIPv4   []IPPrice     `json:"primary_ipv4"`
 }
 
 // ServerPrice is one server type in one location.
@@ -39,6 +41,7 @@ func (c *Client) Prices(ctx context.Context) (Prices, error) {
 	out := Prices{
 		VATRate:         p.VATRate,
 		ImagePerGBMonth: p.Image.PerGBMonth.Gross,
+		BackupPercent:   p.ServerBackup.Percentage,
 		Servers:         []ServerPrice{},
 		PrimaryIPv4:     []IPPrice{},
 	}

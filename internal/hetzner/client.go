@@ -27,6 +27,37 @@ var ErrUnauthorized = errors.New("hetzner: token rejected")
 // ErrUnreachable means the API could not be contacted at all.
 var ErrUnreachable = errors.New("hetzner: API unreachable")
 
+// ErrNotFound means the resource does not exist (any more).
+var ErrNotFound = errors.New("not found")
+
+// Errors the API reports with a clean code, each with our own message so the
+// CLI and the GUI say the same thing (phase-2b §4). The API's message text is
+// never parsed.
+var (
+	ErrProtected = errors.New("delete protection is on; turn it off first")
+	ErrLocked    = errors.New("another action is running on it; try again shortly")
+	ErrLimit     = errors.New("project limit reached (preflight cannot check quotas)")
+	ErrNameTaken = errors.New("that name is already taken in this project")
+	ErrReadOnly  = errors.New("token is read-only; this needs a Read & Write token")
+)
+
+var codeErrors = map[hcloud.ErrorCode]error{
+	hcloud.ErrorCodeNotFound:              ErrNotFound,
+	hcloud.ErrorCodeProtected:             ErrProtected,
+	hcloud.ErrorCodeLocked:                ErrLocked,
+	hcloud.ErrorCodeResourceLimitExceeded: ErrLimit,
+	hcloud.ErrorCodeUniquenessError:       ErrNameTaken,
+	hcloud.ErrorCodeTokenReadonly:         ErrReadOnly,
+}
+
+// ErrOutcomeUnknown means the connection failed while a write may already
+// have reached Hetzner. Never report it as "failed": it may have happened.
+var ErrOutcomeUnknown = errors.New("outcome unknown; refresh to see whether it happened")
+
+// ErrStillRunning means Hetzner accepted a write but it did not finish in
+// time. Not a failure: it carries on at Hetzner.
+var ErrStillRunning = errors.New("still running at Hetzner; refresh later")
+
 // Client talks to one Hetzner Cloud project.
 //
 // It does not read configuration. The caller resolves the active context and
@@ -52,11 +83,24 @@ func classify(err error, op string) error {
 	}
 	var apiErr hcloud.Error
 	if errors.As(err, &apiErr) {
+		if sentinel, ok := codeErrors[apiErr.Code]; ok {
+			return fmt.Errorf("%s: %w", op, sentinel)
+		}
 		// A structured API error means we reached Hetzner; it is not a
 		// connectivity problem and must not be reported as one.
 		return fmt.Errorf("hetzner: %s: %w", op, err)
 	}
 	return fmt.Errorf("%w: %s: %v", ErrUnreachable, op, err)
+}
+
+// classifyWrite is classify for a request that changes something: losing the
+// connection there means the change may or may not have happened.
+func classifyWrite(err error, op string) error {
+	err = classify(err, op)
+	if errors.Is(err, ErrUnreachable) {
+		return fmt.Errorf("%w: %w", ErrOutcomeUnknown, err)
+	}
+	return err
 }
 
 // ValidateToken checks the token against the live API.

@@ -23,6 +23,12 @@ type Server struct {
 	Location   string    `json:"location"`
 	PublicIPv4 string    `json:"public_ipv4"`
 	Created    time.Time `json:"created"`
+	// State the drivers show and use to disable buttons up front. The
+	// service re-checks before every write: the UI is never the guard.
+	Managed          bool `json:"managed"` // labelled managed-by=hao
+	Backups          bool `json:"backups"`
+	DeleteProtected  bool `json:"delete_protected"`
+	RebuildProtected bool `json:"rebuild_protected"`
 }
 
 type LoadBalancer struct {
@@ -101,19 +107,32 @@ func (c *Client) Servers(ctx context.Context) ([]Server, error) {
 	}
 	out := make([]Server, 0, len(raw))
 	for _, s := range raw {
-		v := Server{ID: s.ID, Name: s.Name, Status: string(s.Status), Created: s.Created}
-		if s.ServerType != nil {
-			v.ServerType = s.ServerType.Name
-		}
-		if s.Location != nil {
-			v.Location = s.Location.Name
-		}
-		if s.PublicNet.IPv4.IP != nil {
-			v.PublicIPv4 = s.PublicNet.IPv4.IP.String()
-		}
-		out = append(out, v)
+		out = append(out, serverFromSDK(s))
 	}
 	return out, nil
+}
+
+func serverFromSDK(s *hcloud.Server) Server {
+	v := Server{
+		ID:               s.ID,
+		Name:             s.Name,
+		Status:           string(s.Status),
+		Created:          s.Created,
+		Managed:          s.Labels[managedKey] == managedValue,
+		Backups:          s.BackupWindow != "",
+		DeleteProtected:  s.Protection.Delete,
+		RebuildProtected: s.Protection.Rebuild,
+	}
+	if s.ServerType != nil {
+		v.ServerType = s.ServerType.Name
+	}
+	if s.Location != nil {
+		v.Location = s.Location.Name
+	}
+	if s.PublicNet.IPv4.IP != nil {
+		v.PublicIPv4 = s.PublicNet.IPv4.IP.String()
+	}
+	return v
 }
 
 func (c *Client) LoadBalancers(ctx context.Context) ([]LoadBalancer, error) {

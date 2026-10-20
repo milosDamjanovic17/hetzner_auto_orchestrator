@@ -22,15 +22,18 @@ type apiError struct {
 	code   string
 }
 
-// fakeAPI serves routes (URL path -> response body or apiError) and returns a
-// Client pointed at it.
+// fakeAPI serves routes (URL path -> response body, apiError, or a
+// func(*http.Request) any that picks one) and returns a Client pointed at it.
 func fakeAPI(t *testing.T, routes map[string]any) (*Client, *httptest.Server) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, ok := routes[r.URL.Path]
 		if !ok {
-			t.Errorf("unexpected request %s", r.URL.Path)
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 			body = apiError{http.StatusNotFound, "not_found"}
+		}
+		if handle, ok := body.(func(*http.Request) any); ok {
+			body = handle(r)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if e, ok := body.(apiError); ok {
@@ -42,7 +45,8 @@ func fakeAPI(t *testing.T, routes map[string]any) (*Client, *httptest.Server) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return &Client{api: hcloud.NewClient(hcloud.WithToken("test"), hcloud.WithEndpoint(srv.URL))}, srv
+	return &Client{api: hcloud.NewClient(hcloud.WithToken("test"), hcloud.WithEndpoint(srv.URL),
+		hcloud.WithPollOpts(hcloud.PollOpts{BackoffFunc: hcloud.ConstantBackoff(10 * time.Millisecond)}))}, srv
 }
 
 func testCtx(t *testing.T) context.Context {
@@ -61,12 +65,13 @@ func TestClassifySortsErrorsIntoTheRightCategory(t *testing.T) {
 		status          int
 		wantUnauth      bool
 		wantUnreachable bool
+		want            error // our sentinel for the code, nil if none
 	}{
-		{"rejected token", "unauthorized", http.StatusUnauthorized, true, false},
+		{"rejected token", "unauthorized", http.StatusUnauthorized, true, false, nil},
 		// A read-only token reached Hetzner fine: not a connection problem,
 		// and not "token rejected" either, since reads with it still work.
-		{"read-only token", "token_readonly", http.StatusForbidden, false, false},
-		{"forbidden", "forbidden", http.StatusForbidden, false, false},
+		{"read-only token", "token_readonly", http.StatusForbidden, false, false, ErrReadOnly},
+		{"forbidden", "forbidden", http.StatusForbidden, false, false, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, _ := fakeAPI(t, map[string]any{"/servers": apiError{tc.status, tc.code}})
@@ -80,9 +85,12 @@ func TestClassifySortsErrorsIntoTheRightCategory(t *testing.T) {
 			if got := errors.Is(err, ErrUnreachable); got != tc.wantUnreachable {
 				t.Errorf("errors.Is(ErrUnreachable) = %v, want %v (err: %v)", got, tc.wantUnreachable, err)
 			}
-			// The SDK error stays wrapped, so a caller can still ask for the
-			// exact code (a Phase 2b write will want token_readonly).
-			if tc.code != "unauthorized" && !hcloud.IsError(err, hcloud.ErrorCode(tc.code)) {
+			// A code with our own message comes back as our sentinel; any
+			// other keeps the SDK error, so a caller can still ask for it.
+			if tc.want != nil && !errors.Is(err, tc.want) {
+				t.Errorf("err = %v, want %v", err, tc.want)
+			}
+			if tc.want == nil && tc.code != "unauthorized" && !hcloud.IsError(err, hcloud.ErrorCode(tc.code)) {
 				t.Errorf("hcloud code %q lost in %v", tc.code, err)
 			}
 		})

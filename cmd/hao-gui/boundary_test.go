@@ -6,24 +6,30 @@ import (
 	"testing"
 )
 
-// The GUI's one hard security rule: no bound method may hand a token to
-// JavaScript. Everything returned crosses into the web layer, where a token
+// The GUI's one hard security rule: no bound method may hand a token (or,
+// since phase-2b, a password) to JavaScript. Everything returned crosses into the web layer, where a token
 // could be logged, rendered or leaked. This is the Phase 2 counterpart of the
 // secrets package's plaintext-leak test: the mistake most likely to slip in
 // silently, say by returning a config.Context instead of a service.ContextInfo.
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
-// tokenFields walks t and returns the path of every field that could carry a
-// token to JS: an exported field whose Go or JSON name contains "token" (any
-// case), unless it is a bool, which cannot hold a secret (Status.EnvTokenIgnored).
+// secretWords are the names a secret goes by. "password" is phase-2b
+// insurance: Hetzner returns a root password for a server created without
+// an SSH key (§5.2). hao offers no such path today; if it returns, a
+// RootPassword field must not slip into a bound result.
+var secretWords = []string{"token", "password"}
+
+// secretFields walks t and returns the path of every field that could carry a
+// secret to JS: an exported field whose Go or JSON name contains a secretWord
+// (any case), unless it is a bool, which cannot hold a secret (Status.EnvTokenIgnored).
 // An interface field is reported too: what it carries at run time is unknown.
-func tokenFields(t reflect.Type, path string, seen map[reflect.Type]bool) []string {
+func secretFields(t reflect.Type, path string, seen map[reflect.Type]bool) []string {
 	switch t.Kind() {
 	case reflect.Pointer, reflect.Slice, reflect.Array:
-		return tokenFields(t.Elem(), path+"[]", seen)
+		return secretFields(t.Elem(), path+"[]", seen)
 	case reflect.Map:
-		return append(tokenFields(t.Key(), path+"{key}", seen), tokenFields(t.Elem(), path+"{}", seen)...)
+		return append(secretFields(t.Key(), path+"{key}", seen), secretFields(t.Elem(), path+"{}", seen)...)
 	case reflect.Interface:
 		return []string{path + " (interface: contents unknown)"}
 	case reflect.Struct:
@@ -51,15 +57,24 @@ func tokenFields(t reflect.Type, path string, seen map[reflect.Type]bool) []stri
 			continue
 		}
 		fpath := path + "." + f.Name
-		named := strings.Contains(strings.ToLower(f.Name), "token") ||
-			strings.Contains(strings.ToLower(jsonName), "token")
-		if named && f.Type.Kind() != reflect.Bool {
+		if named(f.Name, jsonName) && f.Type.Kind() != reflect.Bool {
 			found = append(found, fpath)
 			continue
 		}
-		found = append(found, tokenFields(f.Type, fpath, seen)...)
+		found = append(found, secretFields(f.Type, fpath, seen)...)
 	}
 	return found
+}
+
+func named(names ...string) bool {
+	for _, n := range names {
+		for _, w := range secretWords {
+			if strings.Contains(strings.ToLower(n), w) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // boundMethods returns every method Wails binds: the exported methods of
@@ -74,7 +89,7 @@ func boundMethods() []reflect.Method {
 	return methods
 }
 
-func TestNoBoundMethodReturnsAToken(t *testing.T) {
+func TestNoBoundMethodReturnsASecret(t *testing.T) {
 	for _, m := range boundMethods() {
 		for i := 0; i < m.Type.NumOut(); i++ {
 			out := m.Type.Out(i)
@@ -83,8 +98,8 @@ func TestNoBoundMethodReturnsAToken(t *testing.T) {
 			if out == errorType {
 				continue
 			}
-			for _, f := range tokenFields(out, m.Name+"()", map[reflect.Type]bool{}) {
-				t.Errorf("bound method result may carry a token to JS: %s", f)
+			for _, f := range secretFields(out, m.Name+"()", map[reflect.Type]bool{}) {
+				t.Errorf("bound method result may carry a secret to JS: %s", f)
 			}
 		}
 	}
@@ -108,7 +123,7 @@ func TestBoundMethodsAreTheOnesTheFrontendCalls(t *testing.T) {
 
 // The walker itself must catch the leaks it exists for, including ones nested
 // inside generics, slices and pointers, and ones named differently than "Token".
-func TestTokenFieldsCatchesLeaks(t *testing.T) {
+func TestSecretFieldsCatchesLeaks(t *testing.T) {
 	type secret struct {
 		Name     string
 		APIToken string // renamed, still a token
@@ -118,6 +133,10 @@ func TestTokenFieldsCatchesLeaks(t *testing.T) {
 	}
 	type flagOnly struct {
 		EnvTokenIgnored bool // a bool cannot carry a secret: allowed
+	}
+	type created struct {
+		ID           int64
+		RootPassword string // what the API returns for a keyless server
 	}
 	type loose struct {
 		Extra any // could hold anything at run time
@@ -130,10 +149,11 @@ func TestTokenFieldsCatchesLeaks(t *testing.T) {
 		{"nested in generic listing", reflect.TypeOf(Listing[*secret]{}), 1},
 		{"json tag", reflect.TypeOf(map[string][]tagged{}), 1},
 		{"bool flag", reflect.TypeOf(flagOnly{}), 0},
+		{"root password", reflect.TypeOf(Listing[created]{}), 1},
 		{"interface field", reflect.TypeOf(loose{}), 1},
 	}
 	for _, c := range cases {
-		got := tokenFields(c.typ, "x", map[reflect.Type]bool{})
+		got := secretFields(c.typ, "x", map[reflect.Type]bool{})
 		if len(got) != c.want {
 			t.Errorf("%s: found %v, want %d finding(s)", c.name, got, c.want)
 		}
